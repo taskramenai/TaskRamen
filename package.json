@@ -1,0 +1,16 @@
+{
+  "name": "taskramen",
+  "version": "0.1.0",
+  "description": "Self-hosted Claude Code assistant with Telegram control, browser automation and scheduled tasks",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "agent-browser": "^0.24.1",
+    "googleapis": "^171.4.0",
+    "pdf-parse": "^2.4.5",
+    "puppeteer": "^24.40.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Persistent Stealth Chrome via Xvfb
+After=network.target
+
+[Service]
+User=__USER__
+ExecStart=/usr/bin/xvfb-run --server-num=99 -s "-screen 0 1920x1080x24" -f __HOME__/.Xauthority __CLAUDE_HOME__/core/start-browser.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

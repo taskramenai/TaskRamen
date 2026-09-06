@@ -1,0 +1,23 @@
+# ALLOWLIST build context (positive-list basis).
+#
+# The `*` rule below excludes EVERYTHING from the build context. Anything the
+# image build genuinely needs must be re-included with an explicit `!pattern`
+# line in the ALLOWLIST section — one deliberate, reviewable line per item.
+# Never weaken the `*` itself.
+#
+# The allowlist is currently EMPTY by design: the Containerfile has no
+# COPY/ADD (app code is volume-mounted at runtime), and the Containerfile
+# itself is always sent to the builder regardless of these rules. This
+# guarantees runtime secrets and PII (.env, personalinfo.md, .chrome-profile,
+# .claude) can never enter the context tarball or a published image — and any
+# future COPY fails loudly at build time until its source is allowlisted here.
+#
+# Read by docker directly and by podman (which falls back to .dockerignore
+# when no .containerignore exists).
+
+# Deny everything…
+*
+
+# ── ALLOWLIST — re-include build inputs below, one `!` line each ──────────
+# (empty — no COPY directives in the Containerfile)
+# Example:  !entrypoint.sh

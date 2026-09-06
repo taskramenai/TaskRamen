@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>{{PRODUCT_NAME}} Setup</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 24px 16px;
+        }
+        .container {
+            max-width: 460px;
+            width: 100%;
+        }
+        h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            text-align: center;
+            color: #1d1d1f;
+        }
+        .card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .card h2 {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            color: #1d1d1f;
+        }
+        .steps {
+            list-style: none;
+            counter-reset: step;
+        }
+        .steps li {
+            counter-increment: step;
+            position: relative;
+            padding-left: 32px;
+            margin-bottom: 12px;
+            font-size: 15px;
+            line-height: 1.5;
+            color: #424245;
+        }
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 1px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #007aff;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .steps li a {
+            color: #007aff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .steps li a:hover {
+            text-decoration: underline;
+        }
+        .steps li code {
+            background: #f0f0f3;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+        }
+        label {
+            display: block;
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #424245;
+        }
+        .input-wrap {
+            position: relative;
+            margin-bottom: 6px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px;
+            border: 2px solid #d2d2d7;
+            border-radius: 10px;
+            background: #fff;
+            color: #1d1d1f;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+            /* Prevent iOS zoom on focus */
+            -webkit-text-size-adjust: 100%;
+        }
+        input[type="text"]:focus {
+            border-color: #007aff;
+        }
+        input[type="text"].invalid {
+            border-color: #ff3b30;
+        }
+        input[type="text"].valid {
+            border-color: #34c759;
+        }
+        .hint {
+            font-size: 13px;
+            color: #86868b;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button.primary {
+            background: #007aff;
+            color: #fff;
+        }
+        button.primary:active {
+            background: #005ecb;
+        }
+        button:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+        .feedback {
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: 10px;
+            font-size: 15px;
+            line-height: 1.5;
+            display: none;
+        }
+        .feedback.success {
+            display: block;
+            background: #e8f9ee;
+            color: #1a7d36;
+            border: 1px solid #b6e8c7;
+        }
+        .feedback.error {
+            display: block;
+            background: #ffeeed;
+            color: #c22;
+            border: 1px solid #ffc8c6;
+        }
+        .example {
+            font-size: 13px;
+            color: #86868b;
+            margin-top: 4px;
+            word-break: break-all;
+            font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{PRODUCT_NAME}} Setup</h1>
+
+        <div class="card">
+            <h2>Step 1: Create a Telegram bot</h2>
+            <ol class="steps">
+                <li>Open <a href="https://t.me/BotFather" target="_blank">@BotFather</a> in Telegram</li>
+                <li>Tap <strong>Start</strong>, then send <code>/newbot</code></li>
+                <li>Choose a name (e.g. "My Assistant")</li>
+                <li>Choose a username ending in <code>bot</code></li>
+                <li>Copy the token BotFather gives you</li>
+            </ol>
+        </div>
+
+        <div class="card">
+            <h2>Step 2: Paste your bot token</h2>
+            <label for="token-input">Bot token</label>
+            <div class="input-wrap">
+                <input type="text" id="token-input" placeholder="Paste token here"
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            </div>
+            <p class="hint">Format: <span class="example">1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ...</span></p>
+            <button id="submit-btn" class="primary" disabled>Submit Token</button>
+            <div id="feedback" class="feedback"></div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            var TOKEN_RE = /^[0-9]{8,12}:[A-Za-z0-9_\-]{35,}$/;
+            var input = document.getElementById('token-input');
+            var btn = document.getElementById('submit-btn');
+            var feedback = document.getElementById('feedback');
+            var submitted = false;
+
+            function validateInput() {
+                var val = input.value.trim();
+                if (val.length === 0) {
+                    input.className = '';
+                    btn.disabled = true;
+                } else if (TOKEN_RE.test(val)) {
+                    input.className = 'valid';
+                    btn.disabled = false;
+                } else {
+                    input.className = 'invalid';
+                    btn.disabled = true;
+                }
+            }
+
+            input.addEventListener('input', validateInput);
+            input.addEventListener('paste', function() {
+                setTimeout(validateInput, 0);
+            });
+
+            btn.addEventListener('click', function() {
+                if (submitted || btn.disabled) return;
+
+                var token = input.value.trim();
+                if (!TOKEN_RE.test(token)) return;
+
+                submitted = true;
+                btn.disabled = true;
+                btn.textContent = 'Submitting...';
+                feedback.className = 'feedback';
+                feedback.style.display = 'none';
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '/submit-token');
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.onload = function() {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        if (xhr.status === 200 && data.ok) {
+                            feedback.className = 'feedback success';
+                            if (data.bot_username) {
+                                feedback.innerHTML = '<strong>@' + data.bot_username + ' connected!</strong><br><br>' +
+                                    '<a href="https://t.me/' + data.bot_username + '" style="color:#007aff;font-weight:600;font-size:17px;">Click here to open @' + data.bot_username + ' in Telegram</a><br><br>' +
+                                    'Tap <strong>Start</strong>, then send any message to complete setup.';
+                            } else {
+                                feedback.textContent = 'Token received! Return to your terminal to continue setup.';
+                            }
+                            feedback.style.display = 'block';
+                            btn.textContent = 'Done';
+                            input.disabled = true;
+                        } else {
+                            feedback.className = 'feedback error';
+                            feedback.textContent = data.error || 'Something went wrong. Please try again.';
+                            feedback.style.display = 'block';
+                            submitted = false;
+                            btn.disabled = false;
+                            btn.textContent = 'Submit Token';
+                        }
+                    } catch (e) {
+                        feedback.className = 'feedback error';
+                        feedback.textContent = 'Unexpected response. Please try again.';
+                        feedback.style.display = 'block';
+                        submitted = false;
+                        btn.disabled = false;
+                        btn.textContent = 'Submit Token';
+                    }
+                };
+                xhr.onerror = function() {
+                    feedback.className = 'feedback error';
+                    feedback.textContent = 'Network error. Please check your connection and try again.';
+                    feedback.style.display = 'block';
+                    submitted = false;
+                    btn.disabled = false;
+                    btn.textContent = 'Submit Token';
+                };
+                xhr.send(JSON.stringify({token: token}));
+            });
+        })();
+    </script>
+</body>
+</html>

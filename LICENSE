@@ -1,0 +1,31 @@
+MIT License
+
+Copyright (c) 2026 Jobs Jolt Private Limited (TaskRamen.ai)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+TaskRamen.ai is a trademark of Jobs Jolt Private Limited. The MIT license above
+covers the TaskRamen agent core source code only. It grants no rights in the
+"TaskRamen" or "TaskRamen.ai" names or logos, which are reserved.
+
+This software orchestrates Anthropic's Claude Code on the user's own Anthropic
+account; Claude Code is not included in, or licensed by, this Software. See
+THIRD_PARTY_NOTICES.txt for third-party components and their licenses.

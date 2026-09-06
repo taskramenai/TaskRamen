@@ -1,0 +1,12 @@
+[Unit]
+Description=Claude Code Router Proxy
+After=network.target
+
+[Service]
+User=__USER__
+ExecStart=/usr/bin/ccr start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

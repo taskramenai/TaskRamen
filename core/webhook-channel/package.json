@@ -1,0 +1,13 @@
+{
+  "name": "webhook-channel",
+  "version": "0.0.1",
+  "description": "Localhost webhook channel for Claude Code — receive-only system trigger channel",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  }
+}

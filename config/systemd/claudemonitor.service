@@ -1,0 +1,19 @@
+[Unit]
+Description=Claude Tmux Output Monitor
+After=claudebot.service
+Requires=claudebot.service
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__CLAUDE_HOME__
+Environment=TMUX_TMPDIR=/tmp
+
+ExecStart=__CLAUDE_HOME__/core/monitor.sh
+
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

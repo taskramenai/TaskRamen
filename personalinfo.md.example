@@ -1,0 +1,46 @@
+# Personal Info
+
+> Template — copy to `personalinfo.md` and fill in your real values.
+>
+> `personalinfo.md` is the ONLY place the user's personal data lives (alongside
+> secrets in `.env` and task files under `projects/`). It is **gitignored** and
+> should be **`chmod 600`**. Claude reads it on demand to fill forms, make
+> bookings, send calendar invites, etc. — never inline this data into CLAUDE.md
+> or any other tracked file.
+>
+> Keep the **table labels below unchanged** — the Google connector parses
+> specific rows (e.g. `First name`, `Last name`, and the `| Service | Email |`
+> table). Values here are placeholders only.
+
+## Identity & contact
+
+| Field | Value |
+|-------|-------|
+| First name | Jane |
+| Last name | Doe |
+| Preferred name | Jane |
+| Personal email (MY_EMAIL) | jane@example.com |
+| Phone | +15551234567 |
+| Booking phone | +15551234567 |
+| Date of birth | 1990-01-31 |
+| Nationality | (your nationality) |
+| Passport number | X1234567 |
+| Home address | 123 Example St, Apt 4B, Example City 12345 |
+| City | Example City |
+| Country | US |
+
+## Partner / household
+
+| Field | Value |
+|-------|-------|
+| Partner name | John Doe |
+| Partner email | john@example.com |
+
+## Service accounts
+
+The dedicated Claude Google Workspace account (== `<SERVICE_EMAIL>`; mirrors
+`SERVICE_GOOGLE_WORKSPACE_RW_EMAIL` in `.env`). The connector flow fills this row in.
+
+| Service | Email |
+|---------|-------|
+| Google Workspace / Calendar | your-assistant@gmail.com |

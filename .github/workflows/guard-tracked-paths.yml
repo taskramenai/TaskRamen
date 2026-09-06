@@ -1,0 +1,124 @@
+name: Guard tracked paths
+
+# Fails if a commit tracks a path that holds real user data.
+#
+# This is the backstop of the three-layer guard described in
+# docs/project-structure.md → "Keeping project data out of git":
+#   1. .gitignore          — nothing under projects/ is staged by default
+#   2. pre-commit hook     — blocks an explicit `git add -f`
+#   3. THIS WORKFLOW       — catches what the first two cannot
+#
+# Layers 1 and 2 are client-side and therefore advisory: `git add -f` defeats
+# the first, `git commit --no-verify` defeats the second, and a machine that
+# never ran install.sh never had the hook. This check runs on GitHub, so it is
+# the only layer that actually holds. Keep it a required status check on the
+# default branch — that is what makes it a guarantee rather than a warning.
+#
+# It scans the whole tracked tree, not just the diff, so a file that slipped in
+# through some earlier path is caught on the next run rather than never.
+
+on:
+  pull_request:
+  push:
+    # Both names, so the check keeps running whether the default branch is
+    # `master` (as here) or `main` (GitHub's default for a new repo).
+    branches: [master, main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Fail on tracked user-data paths
+        run: |
+          set -uo pipefail
+
+          # Same rule set as core/git-hooks/pre-commit — keep the two in step.
+          # POSIX ERE. The projects/ exception is handled explicitly below.
+          patterns=(
+            '^projects/'
+            '^personalinfo\.md$'
+            '^\.env$'
+            '^claudebot\.env$'
+            '^\.crontab$'
+            '^\.claude/settings\.json$'
+            '^\.claude/skills/'
+            '\.credentials\.json$'
+          )
+          reasons=(
+            'real client, deal and personal detail — only projects/.gitkeep is tracked'
+            'passport, DOB, phone, address and partner details'
+            'API keys, OAuth tokens and the Telegram bot token'
+            'proxy/auth mode state'
+            'scheduled tasks including their verbatim prompts'
+            'machine-specific settings, rewritten on every install'
+            'generated at install by core/link-skills.sh; a committed symlink breaks on Windows'
+            'Claude Code OAuth credentials'
+          )
+          allowed=( 'projects/.gitkeep' )
+
+          violations=0
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+
+            skip=0
+            for a in "${allowed[@]}"; do
+              [ "$path" = "$a" ] && skip=1 && break
+            done
+            [ "$skip" = "1" ] && continue
+
+            for i in "${!patterns[@]}"; do
+              if printf '%s\n' "$path" | grep -qE "${patterns[$i]}"; then
+                echo "::error file=$path::Tracked path holds user data — ${reasons[$i]}"
+                violations=$((violations + 1))
+                break
+              fi
+            done
+          done < <(git ls-files)
+
+          if [ "$violations" -gt 0 ]; then
+            {
+              echo "## ❌ Tracked user-data paths"
+              echo
+              echo "$violations tracked path(s) must not be in git. See the annotations above."
+              echo
+              echo "Remove each with \`git rm --cached <path>\` and confirm it is covered by \`.gitignore\`."
+              echo "Note that removing it at HEAD does **not** remove it from history — if the file"
+              echo "was ever pushed, treat the contents as disclosed and rotate anything secret."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "## ✅ No tracked user-data paths" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify the hook and this workflow agree
+        run: |
+          set -uo pipefail
+          # The two rule sets are duplicated by necessity (the hook must run with
+          # no checkout of this file, and vice versa). Drift between them is a
+          # silent hole, so compare them and fail loudly if they diverge.
+          hook_rules=$(grep -oE "^  '[^']+'$" core/git-hooks/pre-commit \
+                       | sed -n '/\^projects/,/credentials/p' | tr -d " '")
+          ci_rules=$(grep -oE "^            '[^']+'$" .github/workflows/guard-tracked-paths.yml \
+                     | sed -n '/\^projects/,/credentials/p' | tr -d " '")
+          # The extraction is coupled to the exact indentation and the
+          # ^projects…credentials sed anchors. If a reformat breaks it, BOTH
+          # lists come back empty and "" == "" would report a vacuous match —
+          # so an empty extraction is itself a failure.
+          if [ -z "$hook_rules" ] || [ -z "$ci_rules" ]; then
+            echo "::error::rule-set extraction returned nothing — the drift check itself broke (indentation or anchor change). Fix the extraction, do not skip it."
+            exit 1
+          fi
+          if [ "$hook_rules" != "$ci_rules" ]; then
+            echo "::error::core/git-hooks/pre-commit and this workflow have diverging rule sets."
+            echo "--- hook ---"; echo "$hook_rules"
+            echo "--- ci ---";   echo "$ci_rules"
+            exit 1
+          fi
+          echo "Rule sets match."

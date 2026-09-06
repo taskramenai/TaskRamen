@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenRouter Telegram Bridge (Tmux Injector)
+After=claude-router.service claudebot.service
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__CLAUDE_HOME__
+ExecStart=/usr/bin/python3 __CLAUDE_HOME__/core/openrouter-bridge.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

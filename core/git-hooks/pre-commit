@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# TaskRamen.ai
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Jobs Jolt Private Limited (TaskRamen.ai)
+
+# core/git-hooks/pre-commit — refuse to commit files that hold real user data.
+#
+# This is layer 2 of three. Layer 1 is .gitignore, which already covers these
+# paths; this hook exists for the case .gitignore cannot cover — an explicit
+# `git add -f`, which an agent working autonomously can reach for when a commit
+# appears to be "missing" a file. Layer 3 is the "Guard tracked paths" CI
+# workflow, which is the backstop: `git commit --no-verify` bypasses this hook,
+# and a machine that never ran install.sh never had it.
+#
+# Installed by install.sh via `git config core.hooksPath core/git-hooks`.
+# To run the checks by hand: bash core/git-hooks/pre-commit
+#
+# Patterns are POSIX ERE (grep -E) — deliberately NOT PCRE, since `grep -P` is
+# absent on macOS and on busybox. The one path needing an exception
+# (projects/, which tracks two files) is handled in code rather than with a
+# lookahead. Keep BLOCKED_PATTERN and BLOCKED_REASON index-aligned.
+
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$REPO_ROOT" || exit 0
+
+BLOCKED_PATTERN=(
+  '^projects/'
+  '^personalinfo\.md$'
+  '^\.env$'
+  '^claudebot\.env$'
+  '^\.crontab$'
+  '^\.claude/settings\.json$'
+  '^\.claude/skills/'
+  '\.credentials\.json$'
+)
+BLOCKED_REASON=(
+  'real client, deal and personal detail — only projects/.gitkeep is tracked'
+  'passport, DOB, phone, address and partner details'
+  'API keys, OAuth tokens and the Telegram bot token'
+  'proxy/auth mode state'
+  'scheduled tasks including their verbatim prompts'
+  'machine-specific settings, rewritten on every install'
+  'generated at install by core/link-skills.sh; a committed symlink breaks on Windows'
+  'Claude Code OAuth credentials'
+)
+
+# The only tracked path under projects/.
+PROJECTS_ALLOWED=(
+  'projects/.gitkeep'
+)
+
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[[ -n "$staged" ]] || exit 0
+
+violations=""
+while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+
+    # projects/ exception: the directory keeper is fine.
+    skip=0
+    for allowed in "${PROJECTS_ALLOWED[@]}"; do
+        [[ "$path" == "$allowed" ]] && skip=1 && break
+    done
+    [[ $skip -eq 1 ]] && continue
+
+    for i in "${!BLOCKED_PATTERN[@]}"; do
+        if printf '%s\n' "$path" | grep -qE "${BLOCKED_PATTERN[$i]}"; then
+            violations+="  $path"$'\n'"      -> ${BLOCKED_REASON[$i]}"$'\n'
+            break
+        fi
+    done
+done <<< "$staged"
+
+if [[ -n "$violations" ]]; then
+    cat >&2 <<EOF
+
+======================================================================
+  COMMIT BLOCKED - staged files contain real user data
+======================================================================
+
+$violations
+These paths are gitignored; staging them required an explicit \`git add -f\`.
+They hold live user data and must never reach a remote - this repository is
+public.
+
+To proceed, unstage them:
+
+  git restore --staged <path>
+
+If you are certain a path belongs in git, remove it from BLOCKED_PATTERN in
+core/git-hooks/pre-commit in the same commit, so the decision is reviewable.
+Do NOT reach for --no-verify: CI enforces the same rule and will fail the PR.
+
+EOF
+    exit 1
+fi
+
+exit 0

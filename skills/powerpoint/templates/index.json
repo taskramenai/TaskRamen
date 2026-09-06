@@ -1,0 +1,16 @@
+{
+  "templates": [
+    {
+      "file": "clean-consulting.pptx",
+      "name": "Clean Consulting",
+      "tags": ["clean consulting and corporate", "consulting", "corporate", "minimalist", "business", "strategy", "pitch deck", "board update", "teal", "blue", "16:9"],
+      "description": "Minimalist corporate/consulting deck: white content slides, soft-grey section dividers with a black table of contents, teal (#00B8A0) primary accent and blue (#1A73E8) secondary accent, a full-width title divider rule and top-right logo placeholder on every slide, Inter headings + Lato body. 16 example slides covering the 9 standard layouts (title, section, one-column, two-column, big-stat, photo+caption, photo grid, quote, closing) plus 7 native analytics/chart layouts (column chart, line chart, chart+insights, two-chart comparison, KPI dashboard, data table, 2x2 matrix)."
+    },
+    {
+      "file": "clean-photo-album.pptx",
+      "name": "Clean Photo Album",
+      "tags": ["photo album", "travel journal", "editorial", "magazine", "photography", "yellow", "magenta", "playful", "16:9"],
+      "description": "Editorial photo-album/travel-journal deck: white stage with edge-to-edge photography in an 8px-gutter grid, bold Playfair Display serif headlines paired with Montserrat captions, electric-yellow (#F8E71C) highlight marker captions and a full-bleed hot-magenta (#EB1E95) section divider. 9 example slides covering title/cover, section divider, one-column, two-column, big-stat, photo+caption, photo grid, quote, and a mosaic closing layout."
+    }
+  ]
+}

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Browser Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1a1a1a; color: #eee; font-family: system-ui, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+
+  #toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px; background: #2d2d2d; border-bottom: 1px solid #444;
+    flex-shrink: 0;
+  }
+  #toolbar button {
+    background: #444; border: none; color: #eee; padding: 4px 10px;
+    border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  #toolbar button:hover { background: #555; }
+  #urlform { flex: 1; display: flex; min-width: 0; max-width: 220px; }
+  #urlbar {
+    flex: 1; width: 100%; padding: 4px 8px; border-radius: 4px; border: 1px solid #555;
+    background: #1a1a1a; color: #eee; font-size: 12px;
+  }
+  #status {
+    font-size: 12px; color: #888; white-space: nowrap;
+  }
+  #btn-done {
+    background: #16a34a; border: none; color: white;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer;
+    font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+  }
+  #btn-done:hover { background: #15803d; }
+  #btn-done:disabled { background: #555; cursor: default; }
+
+  @media (max-width: 480px) {
+    #toolbar { padding: 4px 6px; gap: 4px; }
+    #toolbar button { padding: 4px 7px; font-size: 12px; }
+    #urlform { max-width: 120px; }
+    #status { display: none; }
+  }
+
+  #intervention-banner {
+    display: none; background: #7c3aed; color: white;
+    padding: 8px 16px; font-size: 13px; flex-shrink: 0;
+    align-items: center; gap: 8px;
+  }
+  #intervention-banner.visible { display: flex; }
+  #intervention-banner .msg { flex: 1; font-size: 12px; }
+
+  #canvas-wrap {
+    flex: 1; overflow-y: auto; overflow-x: hidden; display: flex; align-items: flex-start; justify-content: center;
+    background: #111; min-height: 0;
+  }
+  #screen {
+    cursor: default; display: block;
+    touch-action: none;
+  }
+
+  #overlay {
+    position: fixed; bottom: 16px; right: 16px; font-size: 12px;
+    background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 4px; color: #aaa;
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <button id="btn-back" title="Back">&#8592;</button>
+  <button id="btn-fwd" title="Forward">&#8594;</button>
+  <button id="btn-reload" title="Reload">&#8635;</button>
+  <form id="urlform" action="javascript:void(0)" style="flex:1;display:flex;min-width:0;">
+    <input id="urlbar" type="text" placeholder="Enter URL..." style="flex:1;width:100%;" />
+  </form>
+  <button id="btn-kb" title="Keyboard">&#9000;</button>
+  <button id="btn-scroll-up" onclick="document.getElementById('canvas-wrap').scrollBy(0,-200)" title="Scroll up">&#9650;</button>
+  <button id="btn-scroll-dn" onclick="document.getElementById('canvas-wrap').scrollBy(0,200)" title="Scroll down">&#9660;</button>
+  <button id="btn-done" onclick="returnToAI()" title="Return to AI">Return to AI ✓</button>
+  <span id="status">Connecting...</span>
+</div>
+
+<div id="intervention-banner" class="hidden">
+  <span>⚠️</span>
+  <span class="msg" id="intervention-msg"></span>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="screen"></canvas>
+</div>
+
+<!-- Hidden input to trigger OS keyboard on mobile -->
+<input id="kb-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+  style="position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;">
+
+<div id="overlay">--</div>
+
+<script>
+const canvas = document.getElementById('screen');
+const ctx = canvas.getContext('2d');
+const urlbar = document.getElementById('urlbar');
+const statusEl = document.getElementById('status');
+const overlay = document.getElementById('overlay');
+const banner = document.getElementById('intervention-banner');
+const bannerMsg = document.getElementById('intervention-msg');
+const kbInput = document.getElementById('kb-input');
+const canvasWrap = document.getElementById('canvas-wrap');
+
+let frameCount = 0, lastFpsTime = Date.now();
+let currentUrl = '';
+
+// ── Fit canvas to container (scale-to-fit, maintain aspect ratio) ─────────────
+function fitCanvas() {
+  if (!canvas.width || !canvas.height) return;
+  // Scale to fit width, never upscale. Let height overflow (hidden by overflow:hidden).
+  // This ensures 1:1 horizontal mapping on mobile so right-edge taps (e.g. ad close X) land correctly.
+  const scale = Math.min(canvasWrap.clientWidth / canvas.width, 1);
+  canvas.style.width = Math.round(canvas.width * scale) + 'px';
+  canvas.style.height = Math.round(canvas.height * scale) + 'px';
+}
+// ResizeObserver catches iOS URL-bar hide/show which doesn't fire 'resize'
+new ResizeObserver(fitCanvas).observe(canvasWrap);
+window.addEventListener('resize', fitCanvas);
+
+// ── WebSocket ────────────────────────────────────────────────────────────────
+const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const wsToken = new URLSearchParams(location.search).get('token');
+// All endpoints are token-gated in tunnel mode — append the session token to
+// every request, not just the WebSocket.
+const tokenQS = wsToken ? '?token=' + encodeURIComponent(wsToken) : '';
+const ws = new WebSocket(`${wsProtocol}//${location.host}${tokenQS}`);
+
+ws.onopen = () => {
+  statusEl.textContent = 'Live'; statusEl.style.color = '#4ade80';
+};
+ws.onclose = () => { statusEl.textContent = 'Disconnected'; statusEl.style.color = '#f87171'; };
+
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'frame') {
+    const img = new Image();
+    img.onload = () => {
+      if (canvas.width !== img.width || canvas.height !== img.height) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        fitCanvas();
+      }
+      ctx.drawImage(img, 0, 0);
+      frameCount++;
+    };
+    img.src = 'data:image/jpeg;base64,' + msg.data;
+  } else if (msg.type === 'navigate') {
+    currentUrl = msg.url;
+    if (document.activeElement !== urlbar) urlbar.value = msg.url;
+  }
+};
+
+// FPS counter
+setInterval(() => {
+  const now = Date.now();
+  const fps = Math.round(frameCount / ((now - lastFpsTime) / 1000));
+  overlay.textContent = `${fps} fps`;
+  frameCount = 0;
+  lastFpsTime = now;
+}, 2000);
+
+// Check for intervention context — show banner with message if active
+async function checkIntervention() {
+  try {
+    const res = await fetch('/status' + tokenQS);
+    const data = await res.json();
+    if (data.intervention) {
+      banner.classList.add('visible');
+      bannerMsg.textContent = data.intervention.message || data.intervention.task;
+    } else {
+      banner.classList.remove('visible');
+    }
+  } catch {}
+}
+checkIntervention();
+setInterval(checkIntervention, 5000);
+
+async function returnToAI() {
+  const btn = document.getElementById('btn-done');
+  btn.disabled = true;
+  btn.textContent = 'Returning...';
+  try {
+    await fetch('/done' + tokenQS, { method: 'POST' });
+    btn.textContent = 'Done ✓';
+    setTimeout(() => window.close(), 2000);
+  } catch {
+    btn.disabled = false;
+    btn.textContent = 'Return to AI ✓';
+  }
+}
+
+
+// ── Mouse input ──────────────────────────────────────────────────────────────
+function canvasCoords(e) {
+  const rect = canvas.getBoundingClientRect();
+  const cssScaleX = canvas.width / rect.width;
+  const cssScaleY = canvas.height / rect.height;
+  return {
+    x: Math.round((e.clientX - rect.left) * cssScaleX),
+    y: Math.round((e.clientY - rect.top) * cssScaleY),
+  };
+}
+
+canvas.addEventListener('mousemove', (e) => {
+  const { x, y } = canvasCoords(e);
+  ws.send(JSON.stringify({ type: 'mouseEvent', eventType: 'mouseMoved', x, y }));
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  canvas.focus();
+  const { x, y } = canvasCoords(e);
+  const button = ['left','middle','right'][e.button] || 'left';
+  const clickCount = e.detail >= 2 ? 2 : 1;
+  ws.send(JSON.stringify({ type: 'mouseEvent', eventType: 'mousePressed', x, y, button, clickCount }));
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  const { x, y } = canvasCoords(e);
+  const button = ['left','middle','right'][e.button] || 'left';
+  const clickCount = e.detail >= 2 ? 2 : 1;
+  ws.send(JSON.stringify({ type: 'mouseEvent', eventType: 'mouseReleased', x, y, button, clickCount }));
+});
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const { x, y } = canvasCoords(e);
+  ws.send(JSON.stringify({ type: 'scroll', x, y, deltaX: e.deltaX, deltaY: e.deltaY }));
+}, { passive: false });
+
+// ── Touch input (mobile) — native touch events via CDP ───────────────────────
+// Uses Input.dispatchTouchEvent for scroll and drag (GeeTest sliders).
+// CDP does NOT auto-synthesize click from touch, so we send explicit mouse
+// click events after a tap (no significant movement).
+
+let tapStartX = 0, tapStartY = 0, tapMoved = false;
+let lastTouchX = 0, lastTouchY = 0;
+let gestureType = null; // 'scroll' | 'drag' — locked on first significant movement
+
+function touchPoint(t) {
+  const { x, y } = canvasCoords({ clientX: t.clientX, clientY: t.clientY });
+  return { x, y, id: t.identifier, radiusX: 1, radiusY: 1, force: 1 };
+}
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const points = Array.from(e.touches).map(touchPoint);
+  tapStartX = points[0].x; tapStartY = points[0].y;
+  lastTouchX = points[0].x; lastTouchY = points[0].y;
+  tapMoved = false;
+  gestureType = null;
+  ws.send(JSON.stringify({ type: 'touchEvent', eventType: 'touchStart', touchPoints: points }));
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const points = Array.from(e.touches).map(touchPoint);
+  const { x, y } = points[0];
+  const absDx = Math.abs(x - tapStartX);
+  const absDy = Math.abs(y - tapStartY);
+  if (absDx > 8 || absDy > 8) tapMoved = true;
+  // Lock gesture direction on first significant movement
+  if (!gestureType && (absDx > 5 || absDy > 5)) {
+    gestureType = absDy >= absDx ? 'scroll' : 'drag';
+  }
+  // Always send touchMove (needed for drag interactions like GeeTest sliders)
+  ws.send(JSON.stringify({ type: 'touchEvent', eventType: 'touchMove', touchPoints: points }));
+  // Only send mouseWheel for vertical scroll gestures — not during horizontal drags
+  if (gestureType === 'scroll' && tapMoved) {
+    const deltaX = lastTouchX - x;
+    const deltaY = lastTouchY - y;
+    ws.send(JSON.stringify({ type: 'scroll', x, y, deltaX, deltaY }));
+  }
+  lastTouchX = x; lastTouchY = y;
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  const points = Array.from(e.changedTouches).map(t => ({ ...touchPoint(t), force: 0 }));
+  ws.send(JSON.stringify({ type: 'touchEvent', eventType: 'touchEnd', touchPoints: points }));
+  // CDP doesn't synthesize clicks from touch — send explicit click for taps
+  if (!tapMoved && points.length === 1) {
+    const { x, y } = points[0];
+    setTimeout(() => {
+      ws.send(JSON.stringify({ type: 'mouseEvent', eventType: 'mouseMoved', x, y }));
+      ws.send(JSON.stringify({ type: 'mouseEvent', eventType: 'mousePressed', x, y, button: 'left', clickCount: 1 }));
+      ws.send(JSON.stringify({ type: 'mouseEvent', eventType: 'mouseReleased', x, y, button: 'left', clickCount: 1 }));
+    }, 50);
+  }
+}, { passive: false });
+
+// ── Toolbar actions ──────────────────────────────────────────────────────────
+document.getElementById('btn-back').onclick = () => ws.send(JSON.stringify({ type: 'navigate', url: '__back__' }));
+document.getElementById('btn-fwd').onclick = () => ws.send(JSON.stringify({ type: 'navigate', url: '__forward__' }));
+document.getElementById('btn-reload').onclick = () => {
+  let url = urlbar.value.trim();
+  if (!url.startsWith('http')) url = 'https://' + url;
+  ws.send(JSON.stringify({ type: 'navigate', url }));
+};
+
+let urlbarCommitted = false;
+
+function navigateToUrl() {
+  urlbarCommitted = true;
+  let url = urlbar.value.trim();
+  if (!url.startsWith('http')) url = 'https://' + url;
+  ws.send(JSON.stringify({ type: 'navigate', url }));
+  urlbar.blur();
+}
+
+urlbar.addEventListener('focus', () => {
+  urlbarCommitted = false;
+  urlbar.select();
+});
+
+urlbar.addEventListener('blur', () => {
+  if (!urlbarCommitted) urlbar.value = currentUrl;
+});
+
+// form submit catches mobile "Go" button press (more reliable than keydown on mobile)
+document.getElementById('urlform').addEventListener('submit', (e) => {
+  e.preventDefault();
+  navigateToUrl();
+});
+
+urlbar.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    navigateToUrl();
+  } else if (e.key === 'Escape') {
+    urlbarCommitted = false;
+    urlbar.value = currentUrl;
+    urlbar.blur();
+  }
+});
+
+// ── Keyboard button — triggers OS keyboard on mobile ─────────────────────────
+document.getElementById('btn-kb').addEventListener('click', () => {
+  kbInput.focus();
+});
+
+// Use 'input' event — iOS virtual keyboard doesn't reliably fire keydown
+kbInput.addEventListener('input', (e) => {
+  const text = kbInput.value;
+  for (const char of text) {
+    ws.send(JSON.stringify({ type: 'keyEvent', eventType: 'char', key: char, text: char, keyCode: char.charCodeAt(0) }));
+  }
+  kbInput.value = '';
+});
+
+kbInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Backspace') {
+    ws.send(JSON.stringify({ type: 'keyEvent', eventType: 'keyDown', key: 'Backspace', code: 'Backspace', keyCode: 8, text: '' }));
+    ws.send(JSON.stringify({ type: 'keyEvent', eventType: 'keyUp',   key: 'Backspace', code: 'Backspace', keyCode: 8 }));
+  } else if (e.key === 'Enter') {
+    ws.send(JSON.stringify({ type: 'keyEvent', eventType: 'keyDown', key: 'Enter', code: 'Enter', keyCode: 13, text: '\r' }));
+    ws.send(JSON.stringify({ type: 'keyEvent', eventType: 'keyUp',   key: 'Enter', code: 'Enter', keyCode: 13 }));
+  }
+});
+
+// ── Keyboard input (desktop — canvas focused) ─────────────────────────────────
+canvas.setAttribute('tabindex', '0');
+
+canvas.addEventListener('keydown', (e) => {
+  e.preventDefault();
+  const modifiers = (e.shiftKey ? 8 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 1 : 0) | (e.metaKey ? 4 : 0);
+  ws.send(JSON.stringify({
+    type: 'keyEvent', eventType: 'keyDown',
+    key: e.key, code: e.code, keyCode: e.keyCode, modifiers, text: '',
+  }));
+  if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    ws.send(JSON.stringify({
+      type: 'keyEvent', eventType: 'char',
+      key: e.key, text: e.key, keyCode: e.keyCode, modifiers,
+    }));
+  }
+});
+
+canvas.addEventListener('keyup', (e) => {
+  ws.send(JSON.stringify({
+    type: 'keyEvent', eventType: 'keyUp',
+    key: e.key, code: e.code, keyCode: e.keyCode,
+  }));
+});
+</script>
+</body>
+</html>

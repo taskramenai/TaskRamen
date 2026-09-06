@@ -1,0 +1,146 @@
+TaskRamen.ai - THIRD-PARTY NOTICES AND ATTRIBUTIONS
+
+The TaskRamen.ai product installs, downloads, and/or operates the third-party
+components listed below. Each is the property of its respective owners and is
+provided under its own license. This file is provided for attribution. The full
+text of each license should be retained and distributed with the corresponding
+component as that component's license requires.
+
+NOTE: This list is maintained by hand against Containerfile and package.json.
+It is not a machine-generated SBOM and does not enumerate transitive
+dependencies. Reconcile it with the actual shipped artifacts before each
+release; when adding a dependency to Containerfile or package.json, add it here
+in the same change.
+
+----------------------------------------------------------------------
+Application runtime and tooling (container image)
+----------------------------------------------------------------------
+
+Node.js
+  Copyright (c) OpenJS Foundation and Node.js contributors.
+  License: MIT License (with additional licenses for bundled dependencies)
+  https://github.com/nodejs/node/blob/main/LICENSE
+
+nvm (Node Version Manager)
+  Copyright (c) nvm contributors.
+  License: MIT License
+  https://github.com/nvm-sh/nvm/blob/master/LICENSE.md
+
+Bun
+  Copyright (c) Oven and contributors.
+  License: MIT License
+  https://github.com/oven-sh/bun/blob/main/LICENSE.md
+
+Chromium
+  Copyright (c) The Chromium Authors.
+  License: BSD 3-Clause License (with additional licenses for bundled
+  components).
+  https://chromium.googlesource.com/chromium/src/+/main/LICENSE
+
+supercronic
+  Copyright (c) Aptible and contributors.
+  License: MIT License
+  https://github.com/aptible/supercronic/blob/master/LICENSE
+
+agent-browser (Vercel Labs)
+  Copyright (c) Vercel, Inc. and contributors.
+  License: Apache License 2.0
+  https://github.com/vercel-labs/agent-browser/blob/main/LICENSE
+
+cloudflared
+  Copyright (c) Cloudflare, Inc.
+  License: Apache License 2.0
+  https://github.com/cloudflare/cloudflared/blob/master/LICENSE
+
+LibreOffice (core, Writer, Calc, Impress — headless)
+  Copyright (c) The Document Foundation and contributors.
+  License: Mozilla Public License 2.0 (with LGPL-3.0 components). Binary
+  redistribution inside the image is permitted; the obligation is to keep the
+  /usr/share/doc/*/copyright notices intact (do NOT strip /usr/share/doc).
+  https://www.libreoffice.org/download/license/
+
+Xvfb, matchbox-window-manager, and the Chromium runtime libraries
+  (libnss3, libatk1.0-0, libatk-bridge2.0-0, libcups2, libdrm2, libxkbcommon0,
+  libgbm1, libasound2, libxcomposite1, libxdamage1, libxfixes3, libxrandr2,
+  libpango-1.0-0, libcairo2, fonts-liberation)
+  Copyright (c) their respective authors.
+  Licenses: MIT / X11, LGPL-2.1-or-later, MPL-2.0 and similar, per package.
+  Binary redistribution inside the image is permitted; the per-package
+  copyright/license notices are retained under /usr/share/doc/.
+
+keyutils (keyctl)
+  Copyright (c) Red Hat, Inc. and contributors (David Howells et al.).
+  License: GPL-2.0-or-later (keyctl and the other programs); the libkeyutils
+  library is LGPL-2.1-or-later. Binary redistribution inside the image is
+  permitted; corresponding source is available from Debian and the package's
+  copyright/license notices are retained under /usr/share/doc/keyutils/.
+  https://git.kernel.org/pub/scm/linux/kernel/git/dhowells/keyutils.git/tree/LICENCE.GPL
+
+Base system packages from Ubuntu 22.04 and Debian bookworm
+  (tmux, curl, unzip, python3, python3-pip, ca-certificates, gnupg, git, jq,
+  qrencode, tzdata)
+  Copyright (c) their respective authors.
+  Licenses: various (MIT/ISC, BSD, GPL-2.0-or-later, GPL-3.0-or-later).
+  Binary redistribution inside the image is permitted; corresponding source is
+  available from Ubuntu/Debian and the per-package copyright notices are
+  retained under /usr/share/doc/.
+
+----------------------------------------------------------------------
+Python libraries (baked into the container image, pinned)
+----------------------------------------------------------------------
+
+python-pptx 1.0.2 — MIT License — https://github.com/scanny/python-pptx
+openpyxl 3.1.2 — MIT License — https://foss.heptapod.net/openpyxl/openpyxl
+pandas 2.2.1 — BSD 3-Clause License — https://github.com/pandas-dev/pandas
+python-docx 1.1.0 — MIT License — https://github.com/python-openxml/python-docx
+reportlab 4.1.0 — BSD 3-Clause License — https://www.reportlab.com/
+pypdf 4.1.0 — BSD 3-Clause License — https://github.com/py-pdf/pypdf
+pdfplumber 0.11.0 — MIT License — https://github.com/jsvine/pdfplumber
+weasyprint 61.2 — BSD 3-Clause License — https://github.com/Kozea/WeasyPrint
+
+requests (Apache License 2.0 — https://github.com/psf/requests) is imported by
+core/openrouter-bridge.py but is NOT installed by the Containerfile and is not
+pinned, so it is not shipped in the image and is listed here for attribution
+only.
+
+----------------------------------------------------------------------
+Node dependencies
+----------------------------------------------------------------------
+
+agent-browser is baked into the image by the Containerfile. The rest are
+npm-installed at first run onto the mounted volume by entrypoint.sh, on the
+user's own machine, and are therefore not redistributed in the image.
+
+agent-browser — Apache License 2.0 (see the Vercel Labs entry above)
+googleapis — Apache License 2.0 — https://github.com/googleapis/google-api-nodejs-client
+pdf-parse — MIT License — https://gitlab.com/autokent/pdf-parse
+puppeteer — Apache License 2.0 — https://github.com/puppeteer/puppeteer
+puppeteer-extra — MIT License — https://github.com/berstend/puppeteer-extra
+puppeteer-extra-plugin-stealth — MIT License — https://github.com/berstend/puppeteer-extra
+ws — MIT License — https://github.com/websockets/ws
+@modelcontextprotocol/sdk — MIT License — https://github.com/modelcontextprotocol/typescript-sdk
+  (declared in core/webhook-channel/package.json, not the root package.json)
+
+----------------------------------------------------------------------
+Host tooling (not part of the distributed image)
+----------------------------------------------------------------------
+
+Podman
+  Copyright (c) The Containers Organization and contributors.
+  License: Apache License 2.0
+  The container engine used to build and run the image. It is supplied by the
+  user's own operating system and is never installed into the image.
+  https://github.com/containers/podman/blob/main/LICENSE
+
+----------------------------------------------------------------------
+AI service (installed from the official source; not redistributed)
+----------------------------------------------------------------------
+
+Anthropic Claude Code (@anthropic-ai/claude-code)
+  Copyright (c) Anthropic.
+  Installed from Anthropic's official distribution under Anthropic's own license
+  and terms of service. It is NOT redistributed by Jobs Jolt Private Limited.
+  The user must supply and use their own Anthropic account or credentials.
+  "Claude" and "Anthropic" are trademarks of Anthropic. TaskRamen.ai is not
+  affiliated with, endorsed by, or sponsored by Anthropic.
+  https://www.anthropic.com/legal

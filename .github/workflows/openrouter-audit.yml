@@ -1,0 +1,45 @@
+name: OpenRouter Security & PII Audit
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+# Run Node-based actions on Node 24 now, ahead of GitHub's forced default
+# (June 16, 2026). The pinned audit action below still declares node20.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  openrouter-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # Required for the bot to post comments
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Run OpenRouter Audit
+        # Pinned to the v1.0.0 commit — the last with the compiled dist/
+        # bundle. @main is broken: upstream removed dist/ while action.yml
+        # still points at dist/index.js, so every run fails at load time.
+        uses: jonit-dev/openrouter-github-action@88f63615c769f8db6031973503c2c40a9a3f4feb # v1.0.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          open_router_key: ${{ secrets.OPEN_ROUTER_KEY }}
+          # You can change this to any model string on OpenRouter 
+          # e.g., 'google/gemini-2.5-pro', 'openai/gpt-4o', or 'anthropic/claude-3.5-sonnet'
+          model_id: '~google/gemini-flash-latest' 
+          custom_prompt: |
+            SECURITY AND PII AUDIT ONLY:
+            You are a strict security auditor. Review the current code diff for this pull request.
+            
+            Your ONLY job is to look for:
+            1. Personally Identifiable Information (PII) accidentally committed (e.g., real names, emails, phone numbers, physical addresses).
+            2. Hardcoded secrets (e.g., API keys, Bearer tokens, passwords, database URIs).
+            
+            RULES:
+            - If you find any of the above, flag it as HIGH SEVERITY. 
+            - DO NOT repeat the actual secret or PII in your comment. Just point out the file and line.
+            - Placeholders, templates, dummy/example values ($VAR, <PLACEHOLDER>, .env.example keys, YOUR_X_HERE, example.com emails), and code that merely reads or references secrets stored elsewhere are NOT findings — flag only actual secret/PII values present in the diff.
+            - Do NOT provide general code review feedback (ignore formatting, bugs, or logic).
+            - If the code is perfectly clean of PII and secrets, output exactly: "✅ AI Security Audit Passed: No PII or secrets detected."

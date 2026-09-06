@@ -1,0 +1,134 @@
+name: Full Repo Security & PII Scan
+# Manually triggered (Actions tab -> this workflow -> "Run workflow").
+# Unlike the PR audit (openrouter-audit.yml), which only reviews a PR's diff,
+# this scans EVERY text file in the repository by calling the OpenRouter API
+# directly with the same security/PII audit prompt. Findings go to the run's
+# step summary; the job fails (red) if anything HIGH SEVERITY is found.
+on:
+  workflow_dispatch:
+    inputs:
+      model_id:
+        description: 'OpenRouter model ID'
+        required: false
+        default: '~google/gemini-flash-latest'
+
+permissions:
+  contents: read
+
+jobs:
+  full-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Scan all repo files with OpenRouter
+        env:
+          OPEN_ROUTER_KEY: ${{ secrets.OPEN_ROUTER_KEY }}
+          MODEL_ID: ${{ inputs.model_id }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, sys, time, urllib.request, urllib.error
+
+          KEY = os.environ["OPEN_ROUTER_KEY"]
+          MODEL = os.environ.get("MODEL_ID") or "~google/gemini-flash-latest"
+          URL = "https://openrouter.ai/api/v1/chat/completions"
+
+          EXCLUDE_DIRS = {".git", "node_modules", "__pycache__", ".venv", "dist"}
+          EXCLUDE_FILES = {"package-lock.json", "pnpm-lock.yaml", "yarn.lock"}
+          MAX_FILE_BYTES = 200_000   # skip anything bigger (logs, data dumps)
+          CHUNK_CHARS = 60_000       # per-request payload budget
+
+          PROMPT = """SECURITY AND PII AUDIT ONLY:
+          You are a strict security auditor. Review the following repository files
+          (each begins with a '===== FILE: <path> =====' header).
+
+          Your ONLY job is to look for:
+          1. Personally Identifiable Information (PII) accidentally committed (e.g., real names, emails, phone numbers, physical addresses).
+          2. Hardcoded secrets (e.g., API keys, Bearer tokens, passwords, database URIs, Telegram bot tokens or chat IDs).
+
+          RULES:
+          - A finding requires the ACTUAL sensitive value to be visible in the file content. For each finding, output a line starting with 'HIGH SEVERITY:' followed by the file path and an approximate location/description.
+          - DO NOT repeat the actual secret or PII itself. Just point out the file and where to look.
+          - Real secrets are high-entropy literal values (e.g. ghp_/github_pat_/sk-/xoxb-/AIza prefixes, long random hex/base64 strings) or a real, specific person's data (an actual phone number, passport number, home address, or personal email).
+          - The following are NOT findings. Do NOT flag:
+            * variable/field NAMES or keys with empty, dummy, or placeholder values — including everything in .env.example and *.template files
+            * placeholders of any style: $VAR, ${VAR}, <PLACEHOLDER>, YOUR_X_HERE, changeme, dummy@example.com, your-service-account@gmail.com, 555 phone numbers
+            * sample/dummy data in examples, tests, skills, or docs (fake guest names, sample document IDs)
+            * code or docs that read, write, manage, or merely REFERENCE secrets stored elsewhere (e.g. mentions of personalinfo.md or .env, setup scripts that process .env.example) — flag only if the secret VALUE itself appears in THIS file
+          - Do NOT provide general code review or security-hardening advice.
+          - If in doubt whether a value is real or a placeholder, treat it as a placeholder and do not flag it.
+          - If these files are clean, output exactly: CLEAN"""
+
+          def iter_files():
+              for root, dirs, names in os.walk("."):
+                  dirs[:] = sorted(d for d in dirs if d not in EXCLUDE_DIRS)
+                  for n in sorted(names):
+                      if n in EXCLUDE_FILES:
+                          continue
+                      p = os.path.join(root, n)
+                      try:
+                          if os.path.getsize(p) > MAX_FILE_BYTES:
+                              continue
+                          data = open(p, "rb").read()
+                      except OSError:
+                          continue
+                      if b"\0" in data[:8000]:   # binary
+                          continue
+                      yield os.path.relpath(p, "."), data.decode("utf-8", "replace")
+
+          chunks, cur, size = [], [], 0
+          for path, text in iter_files():
+              blob = f"\n===== FILE: {path} =====\n{text}"
+              if size + len(blob) > CHUNK_CHARS and cur:
+                  chunks.append("".join(cur)); cur, size = [], 0
+              cur.append(blob); size += len(blob)
+          if cur:
+              chunks.append("".join(cur))
+          print(f"Scanning {len(chunks)} chunk(s) with model {MODEL}")
+
+          def call(chunk):
+              payload = json.dumps({
+                  "model": MODEL,
+                  "max_tokens": 4096,
+                  "messages": [
+                      {"role": "system", "content": PROMPT},
+                      {"role": "user", "content": chunk},
+                  ],
+              }).encode()
+              req = urllib.request.Request(URL, data=payload, headers={
+                  "Authorization": f"Bearer {KEY}",
+                  "Content-Type": "application/json",
+              })
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(req, timeout=300) as r:
+                          return json.load(r)
+                  except urllib.error.HTTPError as e:
+                      body = e.read().decode("utf-8", "replace")[:2000]
+                      if e.code in (429, 500, 502, 503) and attempt < 2:
+                          time.sleep(10 * (attempt + 1)); continue
+                      sys.exit(f"OpenRouter API error {e.code}: {body}")
+                  except Exception as e:
+                      if attempt < 2:
+                          time.sleep(10 * (attempt + 1)); continue
+                      raise
+
+          findings = []
+          for i, chunk in enumerate(chunks, 1):
+              resp = call(chunk)
+              out = resp["choices"][0]["message"]["content"].strip()
+              print(f"--- chunk {i}/{len(chunks)} ---\n{out}\n")
+              if "HIGH SEVERITY" in out.upper():
+                  findings.append(out)
+
+          with open(os.environ.get("GITHUB_STEP_SUMMARY", os.devnull), "a") as s:
+              if findings:
+                  s.write("## ❌ Security/PII findings\n\n")
+                  for f in findings:
+                      s.write(f + "\n\n")
+              else:
+                  s.write("## ✅ Full Repo Audit Passed: No PII or secrets detected.\n")
+
+          sys.exit(1 if findings else 0)
+          PYEOF

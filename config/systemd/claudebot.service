@@ -1,0 +1,24 @@
+[Unit]
+Description=Claude Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=__USER__
+Group=__USER__
+WorkingDirectory=__CLAUDE_HOME__
+Environment=TMUX_TMPDIR=/tmp
+
+# The new dynamic file to turn on and off openrouter proxy
+EnvironmentFile=-__CLAUDE_HOME__/claudebot.env
+
+ExecStart=/usr/bin/tmux -L claudebot new-session -d -s claudebot __CLAUDE_HOME__/core/run.sh
+ExecStop=/usr/bin/tmux -L claudebot kill-session -t claudebot
+RemainAfterExit=yes
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

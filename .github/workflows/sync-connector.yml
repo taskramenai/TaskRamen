@@ -1,0 +1,116 @@
+name: Sync vendored connector
+
+# Re-vendors the claudeconnectorskillheadless/ folder from its authoritative
+# upstream repo and opens a PR whenever upstream has changed. Nothing is
+# auto-merged — you review the diff and merge. Do not hand-edit the vendored
+# folder; changes belong upstream and would be overwritten by this sync.
+#
+# ── REQUIRED ONE-TIME SETUP ───────────────────────────────────────────────
+# 1. Actions VARIABLE — Settings → Secrets and variables → Actions → Variables
+#      Name:  SYNC_TARGET_REPO
+#      Value: this repository as owner/repo (e.g. taskramenai/TaskRamen)
+#    Nothing in this file hardcodes an owner or repo name; this variable is what
+#    identifies the canonical repo, and the job is skipped wherever it does not
+#    match (forks, and any clone that has not set it). Set it again after a
+#    transfer or rename — the sync silently stops running until you do.
+#
+#    Optional second variable, SYNC_UPSTREAM_REPO: the private repo the vendored
+#    folder is copied FROM, as owner/repo. Leave it unset and it defaults to
+#    <this repo's owner>/claudeconnectorskillheadless; set it only when upstream
+#    lives under a different account.
+#
+# 2. Actions SECRET — the upstream repo is PRIVATE, so the built-in GITHUB_TOKEN
+#    cannot read it. Create a fine-grained Personal Access Token and store it as
+#    Settings → Secrets and variables → Actions → New repository secret
+#      Name:  CONNECTOR_SYNC_TOKEN
+#      Token: fine-grained PAT owned by the account that owns both repos, granting
+#        • <SYNC_UPSTREAM_REPO> → Contents: Read
+#        • <SYNC_TARGET_REPO>   → Contents: Read and write
+#                                 Pull requests: Read and write
+#    The one token both clones the private upstream and pushes the branch / opens
+#    the PR, so no other repo settings need changing.
+#
+# NOTE: schedule / workflow_dispatch / repository_dispatch only run once this
+# file is on the default branch — they will not fire from a PR branch.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'   # weekly, Mondays 06:17 UTC
+  workflow_dispatch: {}      # manual "Run workflow" button
+  repository_dispatch:
+    types: [connector-updated]   # fired by the upstream repo on push (see README/PR notes)
+
+permissions:
+  contents: read   # the PAT does the writing, not GITHUB_TOKEN
+
+concurrency:
+  group: sync-connector
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    # Only run in the canonical repo: forks don't have CONNECTOR_SYNC_TOKEN and
+    # would otherwise get a permanently failing scheduled workflow. The repo is
+    # named by the SYNC_TARGET_REPO Actions variable (see setup above), so a
+    # transfer or rename is a settings change, not an edit to this file.
+    if: github.repository == vars.SYNC_TARGET_REPO
+    runs-on: ubuntu-latest
+    env:
+      # Defaults to the sibling repo under the same owner; override with a
+      # SYNC_UPSTREAM_REPO variable when upstream sits under another account.
+      SYNC_UPSTREAM_REPO: ${{ vars.SYNC_UPSTREAM_REPO || format('{0}/claudeconnectorskillheadless', github.repository_owner) }}
+      UPSTREAM_BRANCH: main
+      VENDOR_DIR: claudeconnectorskillheadless
+      # The branch to open the PR against. For schedule, workflow_dispatch and
+      # repository_dispatch this is the branch the workflow ran from, i.e. the
+      # default branch — so a repo whose default is `main` rather than `master`
+      # needs no edit here.
+      DEFAULT_BRANCH: ${{ github.ref_name }}
+    steps:
+      - name: Checkout the target repo
+        uses: actions/checkout@v5
+        with:
+          # Persist the PAT so the later `git push` is authenticated.
+          token: ${{ secrets.CONNECTOR_SYNC_TOKEN }}
+
+      - name: Re-vendor from upstream
+        env:
+          TOKEN: ${{ secrets.CONNECTOR_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          git clone --depth 1 -b "$UPSTREAM_BRANCH" \
+            "https://x-access-token:${TOKEN}@github.com/${SYNC_UPSTREAM_REPO}.git" "$tmp"
+          rm -rf "$tmp/.git"
+          # Exclude upstream's own .github/: workflows only run from the repo
+          # root, so a vendored copy can never execute here — it is dead weight
+          # that also publishes the private cross-repo sync wiring and its
+          # secret names.
+          rsync -a --delete --exclude='.github/' "$tmp"/ "$VENDOR_DIR"/
+          rm -rf "$tmp"
+
+      - name: Open a PR if the vendored copy changed
+        env:
+          GH_TOKEN: ${{ secrets.CONNECTOR_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Stage first so the change check also catches upstream-ADDED files —
+          # `git diff` alone ignores untracked files and would skip new additions.
+          git add -A "$VENDOR_DIR"
+          if git diff --cached --quiet -- "$VENDOR_DIR"; then
+            echo "Vendored copy already up to date — nothing to do."
+            exit 0
+          fi
+          ts="$(date -u +%Y%m%d-%H%M%S)"
+          branch="auto/sync-connector-${ts}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -A "$VENDOR_DIR"
+          git commit -m "Sync ${VENDOR_DIR} from upstream (${SYNC_UPSTREAM_REPO}@${UPSTREAM_BRANCH})"
+          git push -u origin "$branch"
+          gh pr create \
+            --base "$DEFAULT_BRANCH" \
+            --head "$branch" \
+            --title "Sync ${VENDOR_DIR} from upstream" \
+            --body "Automated re-vendor of \`${SYNC_UPSTREAM_REPO}\`@\`${UPSTREAM_BRANCH}\`. Review the diff before merging. Do not hand-edit \`${VENDOR_DIR}/\` — fix things upstream instead."
